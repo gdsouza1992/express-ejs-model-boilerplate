@@ -1,8 +1,44 @@
-body {
-  padding: 50px;
-  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+html, body {
+    font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+    height: 100%;
+    margin: 15px;
+    padding: 0;
+    color: white;
+    background-color: #404040;
+}
+
+#map {
+    height: 700px;
 }
 
 a {
-  color: #00B7FF;
+    color: #00B7FF;
+}
+
+li {
+    list-style: none;
+}
+
+#userPolygons{
+    height: 700px;
+    overflow: auto;
+    padding: 0px 10px;
+}
+
+#userPolygons>li{
+    background-color: #565656;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+button {
+    background-color: #00B7FF;
+    padding: 8px;
+    cursor: pointer;
+    border: none;
+}
+
+.userControls{
+    margin-top: 15px;
+    padding-left: 0px;
 }

@@ -1,20 +1,13 @@
-var selectedShape,
-    map,
-    heatmap;
-var heatMapData = [];
+var selectedShape;
+var map, heatmap;
 var savedPolygons = [];
 var currentGrid = null;
-var showfullHeatMap = true;
-var all_overlays = [];
-var latSpacing = 0.05;
-var lngSpacing = 0.05;
-var polygonSavedData;
-
+all_overlays = [];
 
 function initMap() {
     map = new google.maps.Map(document.getElementById('map'), {
-            center: {lat: 42.343, lng: -71.073},
-            zoom: 11
+            center: {lat: 37.775, lng: -122.434},
+            zoom: 15
         });
 
           var drawingManager = new google.maps.drawing.DrawingManager({
@@ -32,7 +25,7 @@ function initMap() {
       drawingManager.setMap(map);
 
       google.maps.event.addListener(drawingManager, 'overlaycomplete', function(e) {
-            onCompletePolygon(e);
+            getPolygonBounds(e);
             all_overlays.push(e);
             if (e.type != google.maps.drawing.OverlayType.MARKER) {
             // Switch back to non-drawing mode after drawing a shape.
@@ -63,29 +56,13 @@ function toggleHeatmap() {
     heatmap.setMap(heatmap.getMap() ? null : map);
 }
 
-function initHeatMap(newheatMapData){
-    if(heatmap && showfullHeatMap){
-        heatmap.setMap(null);
-    }
 
-    var filterednewheatMapData = newheatMapData.filter((obj) => {
-    	if(obj){
-    		if(obj.weight == 0){
-    			return false;
-    		}
-    		return true;
-    	}else {
-    		return false;
-    	}
+function initHeatMap(heatMapData){
+    heatmap = new google.maps.visualization.HeatmapLayer({
+        data: heatMapData,
+        radius: 15
     });
-    heatMapData = heatMapData.concat(filterednewheatMapData);
-    if(showfullHeatMap){
-        heatmap = new google.maps.visualization.HeatmapLayer({
-            data: heatMapData,
-            radius: 15
-        });
-        heatmap.setMap(map);
-    }
+    heatmap.setMap(map);
 }
 
 function clearSelection() {
@@ -110,10 +87,10 @@ function deleteAllShape() {
     all_overlays = [];
 }
 
+
 function deleteSelectedShape() {
     if (selectedShape) {
         selectedShape.setMap(null);
-        heatmap.setData(heatMapData);
     }
 }
 
@@ -136,18 +113,23 @@ function saveSelectedShape() {
             "polygon": latLgnVertices
         }
 
+        // var polygonMapState = {
+        //     mapState,
+        //     latLgnVertices
+        // }
         console.log(mapState);
         saveDataForPolygon(mapState);
     }
 }
+
 
 function getGridForBounds(bounds){
     var NELat = bounds.getNorthEast().lat();
     var NELng = bounds.getNorthEast().lng();
     var SWLat = bounds.getSouthWest().lat();
     var SWLng = bounds.getSouthWest().lng();
-    var spacingLat = latSpacing;
-    var spacingLng = lngSpacing;
+    var spacingLat = 0.005;
+    var spacingLng = 0.005;
     var minLat = Math.min(NELat,SWLat);
     var maxLat = Math.max(NELat,SWLat);
 
@@ -165,54 +147,44 @@ function getGridForBounds(bounds){
     return grid;
 }
 
-function filterGridWithPolygon(heatMapData, polygon){
-    var filteredGrid = heatMapData.filter(function(point){
-        return google.maps.geometry.poly.containsLocation(point.location, polygon.overlay)
+function filterGridWithPolygon(grid, polygon){
+    var filteredGrid = grid.filter(function(point){
+      return google.maps.geometry.poly.containsLocation(point, polygon.overlay)
     });
     return filteredGrid;
 }
 
-function onCompletePolygon(polygon){
-    var filteredGrid = filterGridWithPolygon(heatMapData, polygon);
-    heatmap.setData(filteredGrid);
-    showfullHeatMap = false;
+function getPolygonBounds(polygon){
+    var bounds = new google.maps.LatLngBounds();
+    polygon.overlay.getPath().forEach(function(element,index){ bounds.extend(element); });
+    var grid = getGridForBounds(bounds);
+    var filteredGrid = filterGridWithPolygon(grid, polygon);
+    var jsonLatLon = googleLatLng2Json(filteredGrid);
+    getDataForGrid(jsonLatLon)
 }
 
 function googleLatLng2Json(latLonData){
     return latLonData.map(function(latLgn){
         return({
-            'lat':parseFloat(latLgn.lat().toFixed(3)),
-            'lng':parseFloat(latLgn.lng().toFixed(3))
+            'lat':latLgn.lat(),
+            'lng':latLgn.lng()
         })
     });
 }
 
 function jsonLatLng2Google(latLonData){
-    if(!latLonData)
-        return null;
-
     return latLonData.map((dataPoints) => {
-        if(dataPoints !== null)
-        	return ({
-        		"location": new google.maps.LatLng(dataPoints.lat, dataPoints.lng),
-        		"weight": dataPoints.medianIncome
-        	})
+    	return ({
+    		"location": new google.maps.LatLng(dataPoints.lat, dataPoints.lng),
+    		"weight": dataPoints.medianIncome
+    	})
     })
 }
 
 function onGetGridDataSucess(data){
-    if(typeof data.error != 'undefined'){
-        alert("Error in fetching data");
-        return;
-    }
-
-    var newheatMapData = jsonLatLng2Google(data);
-    if(newheatMapData){
-        console.log("Got Data from server");
-
-        initHeatMap(newheatMapData);
-
-    }
+    var heatMapData = jsonLatLng2Google(data);
+    console.log("Got Data from server");
+    initHeatMap(heatMapData);
 }
 
 function onGetPolygonsData(data){
@@ -224,24 +196,8 @@ function loadPreviousMap(buttonClicked){
     //Get the map with the selected id
     var mapToLoad = savedPolygons.filter((polygon) => {
     	return polygon._id == mapId.toString() ? true : false
-    })[0];
-
-    deleteAllShape();
-    map.setCenter(new google.maps.LatLng(mapToLoad.mapLat, mapToLoad.mapLng));
-    map.setZoom(mapToLoad.zoom);
-    // Construct the polygon.
-    if(typeof polygonToDraw != 'undefined'){
-        polygonToDraw.setMap(null);
-    }
-    polygonToDraw = new google.maps.Polygon({
-      paths: mapToLoad.polygon,
-      strokeColor: '#000000',
-      strokeWeight: 2,
-      fillOpacity: 0.0
-    });
-
-    polygonToDraw.setMap(map);
-
+    })[0]
+    console.log(mapToLoad);
 }
 
 function onGetAllSavedPolygonsSucess(data){
@@ -261,6 +217,8 @@ function onGetAllSavedPolygonsSucess(data){
                 <button data-mapId=${polygonMapState._id}>Load this map</button>
             </li>
         `);
+
+        // $(`#loadMapBtn-${polygonMapState._id}`).onclick = loadPreviousMap(polygonMapState._id);
     })
 }
 
@@ -276,12 +234,8 @@ function getDataForGrid(grid){
     });
 }
 
-function onSavePolygonSucess(){
-    onGetAllSavedPolygonsSucess([polygonSavedData]);
-}
 
 function saveDataForPolygon(polygonMapState){
-    polygonSavedData = polygonMapState;
     $.ajax({
         type: "POST",
         data :JSON.stringify(polygonMapState),
@@ -292,6 +246,7 @@ function saveDataForPolygon(polygonMapState){
         }
     });
 }
+
 
 function getAllSavedPolygons(){
     $.ajax({
@@ -306,9 +261,8 @@ function getAllSavedPolygons(){
 
 function newTilesLoaded(){
     // console.log("New Tiles Loaded");
-    grid = getGridForBounds(map.getBounds());
-    jsonLatLon = googleLatLng2Json(grid);
-    currentGrid = jsonLatLon;
+    var grid = getGridForBounds(map.getBounds());
+    var jsonLatLon = googleLatLng2Json(grid);
     getDataForGrid(jsonLatLon);
 }
 

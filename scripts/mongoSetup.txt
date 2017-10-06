@@ -1,0 +1,2 @@
+use climadb
+db.createCollection("userPolygons")
