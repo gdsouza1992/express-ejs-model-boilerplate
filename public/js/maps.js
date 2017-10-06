@@ -202,7 +202,7 @@ function jsonLatLng2Google(latLonData){
 
 function onGetGridDataSucess(data){
     if(typeof data.error != 'undefined'){
-        alert("Error in fetching data");
+        alert("Area of interest too large.");
         return;
     }
 
@@ -319,5 +319,8 @@ $(document).ready(function(){
     $('#userPolygons').on('click', 'button', function(e){
         loadPreviousMap(e);
     })
+
+    $('#lat-spacing').text(latSpacing.toString());
+    $('#lng-spacing').text(lngSpacing.toString());
 
 });
